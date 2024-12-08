@@ -108,36 +108,22 @@ pub fn part_two(input: &str) -> Option<u32> {
 
     let mut count = 0;
 
-    // Iterate through the grid to find potential centers ('A')
     for x in 1..rows - 1 {
         for y in 1..cols - 1 {
-            let mut tl_br = false;
-            let mut tr_bl = false;
-
             if grid[x][y] == 'A' {
-                // Check Top-Left to Bottom-Right diagonal (M-A-S)
-                if grid[x - 1][y - 1] == 'M' && grid[x + 1][y + 1] == 'S' {
-                    tl_br = true;
-                }
-                if grid[x - 1][y - 1] == 'S' && grid[x + 1][y + 1] == 'M' {
-                    tl_br = true;
-                }
+                // Check both diagonals for M and S
+                let tl_br = (grid[x - 1][y - 1] == 'M' && grid[x + 1][y + 1] == 'S')
+                         || (grid[x - 1][y - 1] == 'S' && grid[x + 1][y + 1] == 'M');
 
-                
-                if grid[x - 1][y + 1] == 'M' && grid[x + 1][y - 1] == 'S' {
-                    tr_bl = true;
-                }
-                if grid[x - 1][y + 1] == 'S' && grid[x + 1][y - 1] == 'M' {
-                    tr_bl = true;
-                }
-                
-                if tr_bl && tl_br {
+                let tr_bl = (grid[x - 1][y + 1] == 'M' && grid[x + 1][y - 1] == 'S')
+                         || (grid[x - 1][y + 1] == 'S' && grid[x + 1][y - 1] == 'M');
+
+                if tl_br && tr_bl {
                     count += 1;
                 }
             }
         }
     }
-
     Some(count as u32)
 }
 
