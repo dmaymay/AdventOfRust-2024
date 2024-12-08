@@ -4,7 +4,6 @@ pub fn part_one(input: &str) -> Option<u32> {
     let mut safe_reports = 0;
 
     for line in input.lines() {
-        // Parse the line into a Vec<u32>
         let levels: Vec<u32> = line
             .split_whitespace()
             .filter_map(|s| s.parse::<u32>().ok())
@@ -13,12 +12,16 @@ pub fn part_one(input: &str) -> Option<u32> {
         let is_increasing = levels.windows(2).all(|pair| pair[1] > pair[0]);
         let is_decreasing = levels.windows(2).all(|pair| pair[1] < pair[0]);
 
+        if !(is_increasing || is_decreasing) {
+            continue;
+        }
+
         let diffs_within_range = levels.windows(2).all(|pair| {
-            (pair[1] as i32 - pair[0] as i32).abs() >= 1
-                && (pair[1] as i32 - pair[0] as i32).abs() <= 3
+            let diff = (pair[1] as i32 - pair[0] as i32).abs();
+            diff >= 1 && diff <= 3
         });
 
-        if (is_increasing || is_decreasing) && diffs_within_range {
+        if diffs_within_range {
             safe_reports += 1;
         }
     }
