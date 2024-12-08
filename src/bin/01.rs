@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 advent_of_code::solution!(1);
 
 pub fn part_one(input: &str) -> Option<u32> {
@@ -21,8 +23,28 @@ pub fn part_one(input: &str) -> Option<u32> {
 }
 
 pub fn part_two(input: &str) -> Option<u32> {
-    None
+    let mut similarity_score: u32 = 0;
+    let mut first_list: Vec<u32> = Vec::new();
+    let mut second_list: Vec<u32> = Vec::new();
+
+    for line in input.lines() {
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        first_list.push(parts[0].parse::<u32>().ok()?);
+        second_list.push(parts[1].parse::<u32>().ok()?);
+    }
+    
+    let mut count_map: HashMap<u32, usize> = HashMap::new();
+    for num in second_list {
+        *count_map.entry(num).or_insert(0) += 1;
+    }
+    
+    for id in first_list {
+        similarity_score += id * count_map.get(&id).cloned().unwrap_or(0) as u32;
+    }
+
+    Some(similarity_score)
 }
+
 
 #[cfg(test)]
 mod tests {
