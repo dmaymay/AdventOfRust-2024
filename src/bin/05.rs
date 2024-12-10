@@ -111,6 +111,7 @@ pub fn part_two(input: &str) -> Option<u32> {
             .push(num1);
     });
 
+
     let mut sum = 0;
     let mut valid: bool = true;
     page_updates.into_iter().for_each(|pages| {
@@ -135,9 +136,9 @@ pub fn part_two(input: &str) -> Option<u32> {
             let mut pages = pages;
             pages.sort_by(|a, b| {
                 if page_rules.get(a).unwrap().left.contains(b) {
-                    std::cmp::Ordering::Less
-                } else {
                     std::cmp::Ordering::Greater
+                } else {
+                    std::cmp::Ordering::Less
                 }
             });
             sum += pages[pages.len() / 2];
@@ -159,6 +160,6 @@ mod tests {
     #[test]
     fn test_part_two() {
         let result = part_two(&advent_of_code::template::read_file("examples", DAY));
-        assert_eq!(result, None);
+        assert_eq!(result, Some(123));
     }
 }
