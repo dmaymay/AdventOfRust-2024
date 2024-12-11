@@ -85,34 +85,28 @@ pub fn part_one(input: &str) -> Option<u32> {
 pub fn part_two(input: &str) -> Option<u32> {
     let grid: Vec<Vec<char>> = input.lines().map(|l| l.chars().collect()).collect();
     let (start_pos, start_dir) = find_start(&grid);
+    let (original_path, _) = guard_movement(&grid, start_pos, start_dir, false);
 
-    let rows = grid.len() as i32;
-    let cols = if rows > 0 {
-        grid[0].len() as i32
-    } else {
-        0
-    };
+    //only use original path
+    let original_positions: HashSet<(i32, i32)> = original_path.into_iter().map(|(pos, _)| pos).collect();
 
     let mut count = 0;
 
-    for r in 0..rows {
-        for c in 0..cols {
-            if (r, c) == start_pos {
-                continue;
-            }
-            if grid[r as usize][c as usize] == '#' {
-                continue;
-            }
+    for (r, c) in original_positions {
+        if (r, c) == start_pos {
+            continue;
+        }
+        if grid[r as usize][c as usize] == '#' {
+            continue;
+        }
 
-            // Create a modified grid
-            let mut grid_clone = grid.clone();
-            grid_clone[r as usize][c as usize] = '#';
+        let mut grid_clone = grid.clone();
+        grid_clone[r as usize][c as usize] = '#';
 
-            // Run simulation with loop detection, starting from original start and direction
-            let (_, loop_detected) = guard_movement(&grid_clone, start_pos, start_dir, true);
-            if loop_detected {
-                count += 1;
-            }
+        // Run simulation with loop detection
+        let (_, loop_detected) = guard_movement(&grid_clone, start_pos, start_dir, true);
+        if loop_detected {
+            count += 1;
         }
     }
 
