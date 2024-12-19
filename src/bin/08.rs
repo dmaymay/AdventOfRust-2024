@@ -11,12 +11,14 @@ pub fn part_one(input: &str) -> Option<u32> {
         for y in 0..cols {
             let antenna = grid[x][y];
             if antenna != '.' {
-                for r in 0..rows {
-                    for c in 0..cols {
-                        if (x, y) != (r, c) && antenna == grid[r][c] {
+                for r in 0..rows - 1 {
+                    for c in 0..cols - 1 {
+                        if antenna == grid[r][c] && (x, y) != (r, c) {
                             let distance = (x as i32 - r as i32, y as i32 - c as i32);
-                            let antinode_one = (x as i32 + 2 * distance.0, y as i32 + 2 * distance.1);
-                            let antinode_two = (x as i32 - distance.0, y as i32 - distance.1);
+
+                            // Corrected formulas for antinodes
+                            let antinode_one = (x as i32 + distance.0, y as i32 + distance.1);
+                            let antinode_two = (r as i32 - distance.0, c as i32 - distance.1);
 
                             if antinode_one.0 >= 0
                                 && antinode_one.0 < rows as i32
@@ -40,7 +42,7 @@ pub fn part_one(input: &str) -> Option<u32> {
         }
     }
 
-    Some(antinodes.len().try_into().unwrap())
+    Some(antinodes.len() as u32)
 }
 
 pub fn part_two(input: &str) -> Option<u32> {
