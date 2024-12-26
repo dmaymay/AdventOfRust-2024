@@ -9,7 +9,6 @@ pub fn part_one(input: &str) -> Option<u64> {
 
     // Build the initial encoding
     for pair in chars.chunks(2) {
-        println!("{:?}",pair);
         if pair.len() == 2 {
             for _ in 0..(pair[0].to_digit(10)?) {
                 encoding.push(id.to_string());
@@ -24,7 +23,6 @@ pub fn part_one(input: &str) -> Option<u64> {
         }
         id += 1;
     }
-    println!("Initial encoding: {:?}", &encoding);
 
     // Get free space positions and digit positions
     let mut free_positions = VecDeque::new();
@@ -39,8 +37,8 @@ pub fn part_one(input: &str) -> Option<u64> {
     }
 
     // Compacting the file system
-    while let (Some(&gap_idx), Some(&digit_idx)) = (free_positions.front(), digit_positions.last()) {
-
+    while let (Some(&gap_idx), Some(&digit_idx)) = (free_positions.front(), digit_positions.last())
+    {
         if gap_idx < digit_idx {
             let digit_block = encoding[digit_idx].clone();
             encoding[digit_idx] = ".".to_string();
@@ -54,11 +52,9 @@ pub fn part_one(input: &str) -> Option<u64> {
     }
 
     // Remove trailing periods
-    println!("Encoding before removing trailing periods: {:?}", encoding);
     while encoding.last().map(|s| s.as_str()) == Some(".") {
         encoding.pop();
     }
-    println!("Encoding after removing trailing periods: {:?}", encoding);
 
     // Compute the checksum
     let checksum: u64 = encoding
@@ -73,7 +69,6 @@ pub fn part_one(input: &str) -> Option<u64> {
         })
         .sum();
 
-    println!("Checksum: {}", checksum);
     Some(checksum)
 }
 
