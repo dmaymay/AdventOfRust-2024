@@ -57,7 +57,7 @@ fn count_stones(stone: &str, steps: usize, memo: &mut HashMap<(String, usize), u
         let new_stone = multiplied.to_string();
         count_stones(&new_stone, steps - 1, memo)
     };
-    
+
     memo.insert((stone.to_string(), steps), result);
     result
 }
@@ -87,6 +87,6 @@ mod tests {
     #[test]
     fn test_part_two() {
         let result = part_two(&advent_of_code::template::read_file("examples", DAY));
-        assert_eq!(result, None);
+        assert_eq!(result, Some(65601038650482));
     }
 }
