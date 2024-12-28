@@ -49,7 +49,7 @@ fn count_stones(stone: &str, steps: usize, memo: &mut HashMap<(String, usize), u
 
         count_stones(&left_val.to_string(), steps - 1, memo)
             + count_stones(&right_val.to_string(), steps - 1, memo)
-            
+
     } else {
         let value = stone.parse::<u64>().unwrap();
         let multiplied = value * 2024; 
@@ -57,7 +57,7 @@ fn count_stones(stone: &str, steps: usize, memo: &mut HashMap<(String, usize), u
         let new_stone = multiplied.to_string();
         count_stones(&new_stone, steps - 1, memo)
     };
-
+    
     memo.insert((stone.to_string(), steps), result);
     result
 }
