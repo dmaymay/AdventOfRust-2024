@@ -3,14 +3,14 @@ use flate2::write::ZlibEncoder;
 use flate2::Compression;
 use regex::Regex;
 use std::io::Write;
-use std::{thread, time::Duration};
-
+/* use std::{thread, time::Duration};
+ */
 struct Robot {
     start_position: (i32, i32),
     velocity: (i32, i32),
 }
 
-fn visualize_robots(robots: &[Robot], width: usize, height: usize, max_seconds: usize) {
+/* fn visualize_robots(robots: &[Robot], width: usize, height: usize, max_seconds: usize) {
     for t in 0..=max_seconds {
         let mut grid = vec![vec!['.'; width]; height];
 
@@ -30,7 +30,7 @@ fn visualize_robots(robots: &[Robot], width: usize, height: usize, max_seconds: 
         // Sleep for 20 ms
         thread::sleep(Duration::from_millis(20));
     }
-}
+} */
 
 fn parse_input(input: &str) -> Vec<Robot> {
     let mut robots: Vec<Robot> = Vec::new();
