@@ -1,19 +1,6 @@
-use std::collections::HashMap;
 advent_of_code::solution!(7);
 
-fn get_combinations(num_spaces: usize) -> Vec<Vec<char>> {
-    let mut combinations = Vec::new();
-    let total_combos = 2u32.pow(num_spaces as u32);
-
-    for n in 0..total_combos {
-        let combo = (0..num_spaces)
-            .map(|i| if (n >> i) & 1 == 0 { '+' } else { '*' })
-            .collect::<Vec<char>>();
-        combinations.push(combo);
-    }
-
-    combinations
-}
+use std::collections::{HashMap, HashSet};
 
 pub fn part_one(input: &str) -> Option<u64> {
     let mut equations = HashMap::new();
@@ -31,27 +18,29 @@ pub fn part_one(input: &str) -> Option<u64> {
     let mut valid_sum = 0;
 
     for (test_value, numbers) in &equations {
-        let num_spaces = numbers.len() - 1;
-        let operator_combinations = get_combinations(num_spaces);
-        let mut is_valid = false;
-
-        for operators in operator_combinations {
-            let mut result = numbers[0];
-            for (i, &operator) in operators.iter().enumerate() {
-                match operator {
-                    '+' => result += numbers[i + 1],
-                    '*' => result *= numbers[i + 1],
-                    _ => unreachable!(),
+        // initialize set in fold opertion with first number
+        let possible_results = numbers.iter().skip(1).fold({
+            let mut set = HashSet::new();
+            set.insert(numbers[0]);
+            set
+        }, |acc_set, &num| {
+            let mut new_set = HashSet::new();
+            // add every possible result to set
+            for &res in &acc_set {
+                let sum = res + num;
+                let prod = res * num;
+                if sum <= *test_value {
+                    new_set.insert(sum);
+                }
+                if prod <= *test_value {
+                    new_set.insert(prod);
                 }
             }
+            new_set
+        });
 
-            if result == *test_value {
-                is_valid = true;
-                break;
-            }
-        }
-
-        if is_valid {
+        // if test_value in set add to sum
+        if possible_results.contains(test_value) {
             valid_sum += test_value;
         }
     }
@@ -59,21 +48,8 @@ pub fn part_one(input: &str) -> Option<u64> {
     Some(valid_sum)
 }
 
-fn get_triple_combo(num_spaces: usize) -> Vec<Vec<&'static str>> {
-    let choices = ["*", "+", "||"];
-    let mut combinations = Vec::new();
-    let total_combos = 3usize.pow(num_spaces as u32);
-
-    for n in 0..total_combos {
-        let combo = (0..num_spaces)
-            .map(|i| {
-                let index = (n / 3usize.pow(i as u32)) % 3;
-                choices[index]
-            })
-            .collect::<Vec<&str>>();
-        combinations.push(combo)
-    }
-    combinations
+fn digits_count(n: u64) -> u32 {
+    n.to_string().len() as u32
 }
 
 pub fn part_two(input: &str) -> Option<u64> {
@@ -92,38 +68,33 @@ pub fn part_two(input: &str) -> Option<u64> {
     let mut valid_sum = 0;
 
     for (test_value, numbers) in &equations {
-        let num_spaces = numbers.len() - 1;
-        let operator_combinations = get_triple_combo(num_spaces);
-        let mut is_valid = false;
-
-        for operators in operator_combinations {
-            let mut result = numbers[0];
-            let mut result_as_string = result.to_string();
-            for (i, &operator) in operators.iter().enumerate() {
-                match operator {
-                    "+" => {
-                        result += numbers[i + 1];
-                        result_as_string = result.to_string();
-                    }
-                    "*" => {
-                        result *= numbers[i + 1];
-                        result_as_string = result.to_string();
-                    }
-                    "||" => {
-                        result_as_string.push_str(&numbers[i + 1].to_string());
-                        result = result_as_string.parse::<u64>().unwrap_or(0);
-                    }
-                    _ => unreachable!(),
+        let possible_results = numbers.iter().skip(1).fold({
+            let mut set = HashSet::new();
+            set.insert(numbers[0]);
+            set
+        }, |acc_set, &num| {
+            let mut new_set = HashSet::new();
+            let d = digits_count(num);
+            for &res in &acc_set {
+                let sum = res + num;
+                let prod = res * num;
+                 // concatenate by shifting res left as many digits as num has
+                let conc = res * 10u64.pow(d) + num;
+            
+                if sum <= *test_value {
+                    new_set.insert(sum);
+                }
+                if prod <= *test_value {
+                    new_set.insert(prod);
+                }
+                if conc <= *test_value {
+                    new_set.insert(conc);
                 }
             }
+            new_set
+        });
 
-            if result == *test_value {
-                is_valid = true;
-                break;
-            }
-        }
-
-        if is_valid {
+        if possible_results.contains(test_value) {
             valid_sum += test_value;
         }
     }
