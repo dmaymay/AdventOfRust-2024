@@ -1,5 +1,5 @@
 advent_of_code::solution!(16);
-use std::collections::HashMap;
+use std::{collections::{HashMap, HashSet}, u32};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum Direction {
@@ -13,9 +13,10 @@ enum Direction {
 struct Path {
     direction: Direction,
     score: u32,
-    valid: bool,
+    //valid: bool,
     finish: bool,
     positions: Vec<(usize, usize)>,
+    
 }
 
 fn next_position((r, c): (usize, usize), dir: Direction) -> (usize, usize) {
@@ -92,11 +93,7 @@ fn possible_paths(grid: &Vec<Vec<char>>, path: Path) -> Vec<Path> {
         let (rr, rc) = next_position(pos, new_dir);
         let right_ch = grid[rr][rc];
         if is_walkable(right_ch) {
-            if path.positions.contains(&(rr, rc)) {
-                let mut looped_path = path.clone();
-                looped_path.valid = false;
-                paths.push(looped_path);
-            } else {
+            if !path.positions.contains(&(rr, rc)) {
                 let mut right_path = path.clone();
                 right_path.score += 1000;
                 right_path.direction = new_dir;
@@ -128,20 +125,19 @@ pub fn part_one(input: &str) -> Option<u32> {
     }
 
     // check possible paths at pos (r,c)
-    let mut paths: Vec<Path> = Vec::new();
+    let mut valid_paths: Vec<Path> = Vec::new();
     let initial_path = Path {
         //moves: vec![Moves::Start],
         direction: Direction::Right,
         score: 0,
-        valid: true,
+        //valid: true,
         finish: false,
         positions: vec![starting_position],
     };
 
-    paths.extend(possible_paths(&grid, initial_path));
-
-    let mut valid_paths: Vec<Path> = paths.into_iter().filter(|p| p.valid).collect();
+    valid_paths.extend(possible_paths(&grid, initial_path));
     let mut global_map: HashMap<((usize, usize), Direction), u32> = HashMap::new();
+
 
     loop {
         let mut new_paths: Vec<Path> = vec![];
@@ -167,14 +163,15 @@ pub fn part_one(input: &str) -> Option<u32> {
                 if existing_score <= score {
                     continue;
                 } else {
+                    pruned_expanding_paths.push(path);
                     // better score for this state -> update
                     global_map.insert(key, score);
                 }
             } else {
+                pruned_expanding_paths.push(path);
                 // first time in this state -> update
                 global_map.insert(key, score);
             }
-            pruned_expanding_paths.push(path);
         }
 
         valid_paths = finished_paths
@@ -196,7 +193,87 @@ pub fn part_one(input: &str) -> Option<u32> {
 }
 
 pub fn part_two(input: &str) -> Option<u32> {
-    None
+    let grid: Vec<Vec<char>> = input.lines().map(|l| l.chars().collect()).collect();
+    let rows = grid.len();
+    let cols = grid[0].len();
+    let mut starting_position: (usize, usize) = (0, 0);
+    'outer: for r in 0..rows {
+        for c in 0..cols {
+            if grid[r][c] == 'S' {
+                starting_position = (r, c);
+                break 'outer;
+            }
+        }
+    }
+
+    // check possible paths at pos (r,c)
+    let mut valid_paths: Vec<Path> = Vec::new();
+    let initial_path = Path {
+        direction: Direction::Right,
+        score: 0,
+        //valid: true,
+        finish: false,
+        positions: vec![starting_position],
+    };
+
+    valid_paths.extend(possible_paths(&grid, initial_path));
+    let mut global_map: HashMap<((usize, usize), Direction), u32> = HashMap::new();
+    
+    loop {
+        
+        let mut new_paths: Vec<Path> = vec![];
+
+        for path in valid_paths {
+            if path.finish {
+                new_paths.push(path);
+            } else {
+                new_paths.extend(possible_paths(&grid, path));
+            }
+        }
+
+        let (finished_paths, expanding_paths): (Vec<_>, Vec<_>) =
+            new_paths.into_iter().partition(|p| p.finish);
+
+        let mut pruned_expanding_paths = vec![];
+        for path in expanding_paths {
+            let current_pos = *path.positions.last().unwrap();
+            let key = (current_pos, path.direction);
+            let score = path.score;
+
+            if let Some(&existing_score) = global_map.get(&key) {
+                if existing_score < score {
+                    continue;
+                } else {
+                    pruned_expanding_paths.push(path);
+                    // better score for this state -> update
+                    global_map.insert(key, score);
+                }
+            } else {
+                pruned_expanding_paths.push(path);
+                // first time in this state -> update
+                global_map.insert(key,  score);
+            }
+            
+        }
+
+        valid_paths = finished_paths
+            .into_iter()
+            .chain(pruned_expanding_paths.into_iter())
+            .collect();
+
+        if valid_paths.is_empty() || valid_paths.iter().all(|p| p.finish) {
+            break;
+        }
+    }
+
+    if valid_paths.is_empty() {
+        None
+    } else {
+        let min_score = valid_paths.iter().map(|p| p.score).min().unwrap();
+        let best_paths: Vec<&Path> = valid_paths.iter().filter(|p| p.score == min_score).collect();
+        let unique_positions: HashSet<(usize,usize)> = best_paths.iter().flat_map(|p|p.positions.iter()).cloned().collect();
+        Some(unique_positions.len() as u32)
+    }
 }
 
 #[cfg(test)]
@@ -212,6 +289,6 @@ mod tests {
     #[test]
     fn test_part_two() {
         let result = part_two(&advent_of_code::template::read_file("examples", DAY));
-        assert_eq!(result, None);
+        assert_eq!(result, Some(45));
     }
 }
