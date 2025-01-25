@@ -81,7 +81,7 @@ impl Grid {
         ]
     }
 
-    fn long_cheat(&self, cheat_space:Vec<bool>, current_position: usize) -> Vec<(usize, usize)> {
+ /*    fn long_cheat(&self, cheat_space: &[bool], current_position: usize) -> Vec<(usize, usize)> {
         let mut visited = vec![false; self.space.len()];
         let mut queue = VecDeque::new();
         let mut targets = Vec::new();
@@ -128,9 +128,7 @@ impl Grid {
                         let next_moves = moves + 1;
 
                         if cheat_space[next_pos] {
-                            if next_moves > 1 {
-                                targets.push((next_pos, next_moves));
-                            }
+                            targets.push((next_pos, next_moves));
                         }
                         // add next position to queue
                         queue.push_back((next_pos, next_moves));
@@ -139,6 +137,35 @@ impl Grid {
             }
         }
 
+        targets
+    } */
+
+    fn long_cheat(&self, cheat_space: &[bool], current_position: usize) -> Vec<(usize, usize)> {
+        let mut targets = Vec::new();
+    
+        let (start_row, start_col) = (current_position / self.cols, current_position % self.cols);
+    
+        let total_rows = self.space.len() / self.cols;
+        let row_min = start_row.saturating_sub(20);
+        let row_max = (start_row + 20).min(total_rows - 1);
+        let col_min = start_col.saturating_sub(20);
+        let col_max = (start_col + 20).min(self.cols - 1);
+    
+        for r in row_min..=row_max {
+            for c in col_min..=col_max {
+                let distance = ((r as i32) - (start_row as i32)).abs()
+                             + ((c as i32) - (start_col as i32)).abs();
+    
+                let moves = distance as usize;
+                if moves <= 20 && moves > 1 {
+                    let idx = r * self.cols + c;
+                    if cheat_space[idx] {
+                        targets.push((idx, moves));
+                    }
+                }
+            }
+        }
+    
         targets
     }
 
@@ -214,12 +241,12 @@ pub fn part_one(input: &str) -> Option<u32> {
             break;
         }
     }
-
+    let position_map = grid.position_to_index_map();
     let mut cheat_moves: u32 = 0;
     // for every cheat move check beginning move in grid.path and target move in grid.path, target index - beginning index is saved moves
     for (start, end) in &possible_cheats {
-        if let Some(start_idx) = grid.path.iter().position(|&x| x == *start) {
-            if let Some(end_idx) = grid.path.iter().position(|&x| x == *end) {
+        if let Some(&start_idx) = position_map.get(start) {
+            if let Some(&end_idx) = position_map.get(end) {
                 if end_idx > start_idx {
                     let normal_moves = (end_idx - start_idx) as u32;
                     let saved_moves = normal_moves - 2;
@@ -242,7 +269,7 @@ pub fn part_two(input: &str) -> Option<u32> {
     let cheat_space = grid.space.clone();
     grid.path.push(current_position?);
     grid.space[current_position?] = false;
-    
+
     loop {
         current_position = grid.next_move(current_position?);
         grid.path.push(current_position?);
@@ -256,8 +283,9 @@ pub fn part_two(input: &str) -> Option<u32> {
     let position_map = grid.position_to_index_map();
     let mut cheat_moves = 0;
 
-    for (start_idx, &start_pos) in grid.path.iter().enumerate() {
-        let cheat_targets = grid.long_cheat(cheat_space.clone(), start_pos);
+    for (start_idx, &start_pos) in grid.path.iter().enumerate().take(grid.path.len() - 100) {
+        
+        let cheat_targets = grid.long_cheat(&cheat_space, start_pos);
         for (target, moves) in cheat_targets {
             if let Some(&target_idx) = position_map.get(&target) {
                 if target_idx > start_idx {
