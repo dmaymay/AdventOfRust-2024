@@ -85,13 +85,6 @@ fn positions_at_time(robots: &[Robot], t: i32) -> Vec<(usize, usize)> {
         .collect()
 }
 
-pub fn part_one(input: &str) -> Option<usize> {
-    let robots = parse_input(input);
-    let final_positions = positions_at_time(&robots, 100);
-    let quadrant_product = quadrant_operation(final_positions);
-    Some(quadrant_product)
-}
-
 fn render_grid(positions: &[(usize, usize)], width: usize, height: usize) -> String {
     let mut grid = vec![vec!['.'; width]; height];
     for &(x, y) in positions {
@@ -114,6 +107,7 @@ fn compressed_size(s: &str) -> usize {
     compressed_data.len()
 }
 
+
 fn find_best_time_for_pattern(robots: &[Robot], max_time: i32) -> i32 {
     let mut best_time = 0;
     let mut best_size = usize::MAX;
@@ -125,7 +119,7 @@ fn find_best_time_for_pattern(robots: &[Robot], max_time: i32) -> i32 {
 
         if size < best_size {
             if best_size != usize::MAX && size * 100 <= best_size * 85 {
-                best_size = size;
+                //best_size = size;
                 best_time = t;
                 break;
             } else {
@@ -137,6 +131,13 @@ fn find_best_time_for_pattern(robots: &[Robot], max_time: i32) -> i32 {
 
     //println!("Final best_size: {best_size}");
     best_time
+}
+
+pub fn part_one(input: &str) -> Option<usize> {
+    let robots = parse_input(input);
+    let final_positions = positions_at_time(&robots, 100);
+    let quadrant_product = quadrant_operation(final_positions);
+    Some(quadrant_product)
 }
 
 pub fn part_two(input: &str) -> Option<u32> {
