@@ -1,5 +1,5 @@
 advent_of_code::solution!(20);
-use std::collections::{HashMap, VecDeque};
+use std::collections::HashMap;
 
 struct Grid {
     space: Vec<bool>,
