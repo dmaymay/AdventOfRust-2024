@@ -48,7 +48,6 @@ fn sequence_pricing(
             parsed_sequences.insert(key);
 
             *sequence_sums.entry(key).or_insert(0) += prices[i];
-
             price_changes.pop_front();
         }
     }
@@ -81,12 +80,12 @@ mod tests {
     #[test]
     fn test_part_one() {
         let result = part_one(&advent_of_code::template::read_file("examples", DAY));
-        assert_eq!(result, None);
+        assert_eq!(result, Some(37327623));
     }
 
     #[test]
     fn test_part_two() {
         let result = part_two(&advent_of_code::template::read_file("examples", DAY));
-        assert_eq!(result, None);
+        assert_eq!(result, Some(24));
     }
 }
