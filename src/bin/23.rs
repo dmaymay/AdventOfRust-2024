@@ -50,46 +50,110 @@ pub fn part_one(input: &str) -> Option<u32> {
     Some(t_triples)
 }
 
-fn expand_triple(
-    triple: (&str, &str, &str),
-    connection_map: &HashMap<&str, Vec<&str>>,
-) -> Vec<String> {
-    let mut set = vec![
-        triple.0.to_string(),
-        triple.1.to_string(),
-        triple.2.to_string(),
-    ];
+fn bron_kerbosch(
+    adj: &HashMap<String, HashSet<String>>,
+    max_clique: &mut Vec<String>,
+    p: &mut Vec<String>,
+    r: &mut Vec<String>,
+    x: &mut Vec<String>,
+) -> () {
+    /*
+    BronKerbosch(R, P, X):
+        if P is empty and X is empty:
+            // R is a maximal clique
+            record R as a maximal clique
 
-    let set_a: HashSet<&str> = connection_map[triple.0].iter().copied().collect();
-    let set_b: HashSet<&str> = connection_map[triple.1].iter().copied().collect();
-    let set_c: HashSet<&str> = connection_map[triple.2].iter().copied().collect();
-    let mut common_neighbours = &(&set_a & &set_b) & &set_c;
-
-    while !common_neighbours.is_empty() {
-        let candidate = common_neighbours.iter().next().unwrap();
-        set.push(candidate.to_string());
-
-        let candidate_neighbors: HashSet<&str> =
-            connection_map[candidate].iter().copied().collect();
-        common_neighbours = &common_neighbours & &candidate_neighbors;
+        choose a pivot u from P ∪ X
+        for each vertex v in P \ N(u):
+            BronKerbosch(R ∪ {v}, P ∩ N(v), X ∩ N(v))
+            P = P \ {v}
+            X = X ∪ {v}
+    */
+    if p.is_empty() && x.is_empty() {
+        if max_clique.len() < r.len() {
+            max_clique.clear();
+            max_clique.extend(r.iter().cloned());
+        }
+        return;
     }
 
-    set
+    // choose a pivot
+
+    let pivot = if !p.is_empty() {
+        Some(p[0].clone())
+    } else if !x.is_empty() {
+        Some(x[0].clone())
+    } else {
+        None
+    };
+
+    if let Some(u) = pivot {
+        let u_adjacent = adj.get(&u).unwrap();
+        let candidates: Vec<String> = p
+            .iter()
+            .filter(|v| !u_adjacent.contains(*v))
+            .cloned()
+            .collect();
+
+        for v in candidates {
+            r.push(v.clone());
+            let v_adjacent = adj.get(&v).unwrap();
+            let mut updated_p = p
+                .iter()
+                .filter(|o| v_adjacent.contains(*o))
+                .cloned()
+                .collect();
+
+            let mut updated_x = x
+                .iter()
+                .filter(|o| v_adjacent.contains(*o))
+                .cloned()
+                .collect();
+
+            bron_kerbosch(adj, max_clique, &mut updated_p, r, &mut updated_x);
+
+            r.pop();
+            p.retain(|node| *node != v);
+            x.push(v);
+        }
+    }
 }
 
 pub fn part_two(input: &str) -> Option<String> {
-    let mut largest_set = Vec::new();
-    let (triple_network, connection_map) = triple_network(input);
+    // Bron–Kerbosch approach
+    let mut adjacency_map: HashMap<String, HashSet<String>> = HashMap::new();
 
-    for triple in triple_network {
-        let net_set = expand_triple(triple, &connection_map);
-        if net_set.len() > largest_set.len() {
-            largest_set = net_set;
-        }
-    }
-    largest_set.sort();
+    input.lines().for_each(|l| {
+        let mut connection = l.split("-");
+        let c1 = connection.next().unwrap().to_string();
+        let c2 = connection.next().unwrap().to_string();
+        adjacency_map
+            .entry(c1.clone())
+            .or_default()
+            .insert(c2.clone());
+        adjacency_map.entry(c2).or_default().insert(c1);
+    });
+    // P -> Candidate set
+    let mut candidates: Vec<String> = adjacency_map.keys().cloned().collect();
+    // R - Current Clique
+    let mut clique = Vec::new();
+    // X -> Exclusion set
+    let mut exclusion = Vec::new();
+    // maximal cliques
+    let mut max_clique = Vec::new();
 
-    Some(largest_set.join(","))
+    bron_kerbosch(
+        &adjacency_map,
+        &mut max_clique,
+        &mut candidates,
+        &mut clique,
+        &mut exclusion,
+    );
+    max_clique.sort();
+    
+    //println!("{:?}", max_clique);
+    Some(max_clique.join(","))
+
 }
 
 #[cfg(test)]
