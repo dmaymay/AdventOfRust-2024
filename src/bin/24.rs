@@ -1,9 +1,11 @@
-use std::{collections::HashMap};
+use std::collections::HashMap;
+
+use regex::Regex;
 
 advent_of_code::solution!(24);
 
 #[derive(Debug, Clone)]
-struct Gate {
+struct Gate1 {
     wires: (String, String),
     operator: String,
     output_wire: String,
@@ -19,10 +21,10 @@ fn match_operator(operator: &str, val1: u8, val2: u8) -> u8 {
     }
 }
 
-fn solve_gates(input: &str) -> (Vec<Gate>, HashMap<String, u8>) {
+fn solve_gates(input: &str) -> (Vec<Gate1>, HashMap<String, u8>) {
     let (wires_input, gates_input) = input.split_once("\n\n").unwrap();
     let mut wires: HashMap<String, u8> = HashMap::new();
-    let mut gates: Vec<Gate> = Vec::new();
+    let mut gates: Vec<Gate1> = Vec::new();
 
     wires_input.lines().for_each(|l| {
         let split: Vec<&str> = l.split(":").collect();
@@ -50,7 +52,7 @@ fn solve_gates(input: &str) -> (Vec<Gate>, HashMap<String, u8>) {
             panic!("Unknown operation: {}", l);
         };
 
-        gates.push(Gate {
+        gates.push(Gate1 {
             wires: (w1, w2),
             operator,
             output_wire,
@@ -113,50 +115,147 @@ fn add_binary(x: &str, y: &str) -> String {
     format!("{:b}", sum)
 }
 
-pub fn part_two(input: &str) -> Option<u128> {
-    let (_, wires) = solve_gates(input);
+#[derive(Debug, Clone)]
+struct Gate {
+    in1: String,
+    in2: String,
+    operator: String,
+    out: String,
+}
 
-    let (z_keys, z_binary) = binary_from_wires(&wires, 'z');
-    let (x_keys, x_binary) = binary_from_wires(&wires, 'x');
-    let (y_keys, y_binary) = binary_from_wires(&wires, 'y');
 
-    let xy_sum = add_binary(&x_binary, &y_binary);
-    println!("xy");
-    println!("Binary: {}", xy_sum);
-    // println!("Z Keys: {:?}, Binary: {}", z_keys, z_binary);
-    println!("Binary: {}", z_binary);
+fn solve_wire(
+    w: &str,
+    init: &HashMap<&str, Vec<u8>>, // "x" -> [bits], "y" -> [bits]
+    circuit: &HashMap<String, Gate>,
+) -> u8 {
 
-    let sum_vector: Vec<char> = xy_sum.chars().collect();
-    let z_binary_vector: Vec<char> = z_binary.chars().collect();
+    let re = Regex::new(r"^(x|y)(\d{2})$").unwrap();
 
-    println!("xy sum len {}",sum_vector.len());
-    println!("z binary len {}",z_binary_vector.len());
+    if let Some(caps) = re.captures(w) {
+        let var = caps.get(1).unwrap().as_str();   // "x" or "y"
+        let idx = caps.get(2).unwrap().as_str().parse::<usize>().unwrap();
+        return init[var][idx];
+    }
+    // evaluate recursively
+    let gate = &circuit[w];
+    let left  = solve_wire(&gate.in1, init, circuit);
+    let right = solve_wire(&gate.in2, init, circuit);
 
-    let mut inconsistent: Vec<String> = Vec::new();
+    match_operator(&gate.operator, left, right)
+}
 
-    for n in 0..sum_vector.len() -1 {
-        let z_value = wires.get(&z_keys[n]).unwrap();
-        let z_char = std::char::from_digit(*z_value as u32, 10).unwrap();
-        let xy_value = sum_vector[n];
-        if z_char != xy_value {
-            inconsistent.push(z_keys[n].clone());
-            
+fn make_wire(var: &str, num: usize) -> String {
+    // e.g. make_wire("z", 3) => "z03"
+    format!("{}{:02}", var, num)
+}
+
+fn validate(n: usize, circuit: &HashMap<String, Gate>) -> bool {
+    // We'll do up to 44 bits (or however many bits your puzzle might have).
+    // The code below is just your Python approach in Rust style.
+    for x in 0..2 {
+        for y in 0..2 {
+            for c in 0..2 {
+                // If n=0, skip carry=1
+                if n == 0 && c == 1 {
+                    continue;
+                }
+
+                // Build init_x, init_y as in your Python code
+                // e.g. 44-n zeros, then push x, possibly push c, then push zeros, then reverse
+                // This is the same logic as your snippet:
+                let size = 44; // or puzzle's bit count
+                let mut arr_x = vec![0; size - n];
+                arr_x.push(x as u8);
+                if n > 0 {
+                    arr_x.push(c as u8);
+                    for _ in 0..(n - 1) {
+                        arr_x.push(0);
+                    }
+                }
+                arr_x.reverse();
+
+                let mut arr_y = vec![0; size - n];
+                arr_y.push(y as u8);
+                if n > 0 {
+                    arr_y.push(c as u8);
+                    for _ in 0..(n - 1) {
+                        arr_y.push(0);
+                    }
+                }
+                arr_y.reverse();
+
+                let mut init = HashMap::new();
+                init.insert("x", arr_x);
+                init.insert("y", arr_y);
+
+                let wire_name = make_wire("z", n); // e.g. "z03"
+                let z_val = solve_wire(&wire_name, &init, circuit);
+
+                if z_val != ((x + y + c) % 2) as u8 {
+                    return false;
+                }
+            }
         }
     }
 
-    println!("{:?}",inconsistent);
+    // If all combos passed, bit n is correct
+    true
+}
 
-    /* println!("X Keys: {:?}, Binary: {}", x_keys, x_binary);
-    println!("Y Keys: {:?}, Binary: {}", y_keys, y_binary); */
+pub fn part_two(input: &str) -> Option<u128> {
+    let (wires_input, gates_input) = input.split_once("\n\n").unwrap();
+    let mut xy_wires: HashMap<String, u8> = HashMap::new();
+    let mut circuit: HashMap<String, Gate> = HashMap::new();
 
-    /*     println!("Final Wires: {:?}", wires);
-    println!("Final Gates: {:?}", gates); // All gates now have output values */
-
-
-
-    let result = u128::from_str_radix(&z_binary, 2).unwrap_or(0);
-    Some(result)
+    // parsing intial x,y wire values
+    for line in wires_input.lines() {
+        let split: Vec<&str> = line.split(':').collect();
+        let wire_name = split[0].trim().to_string();
+        let value: u8 = split[1].trim().parse().unwrap();
+        xy_wires.insert(wire_name, value);
     }
+
+    // parsing and storing gate
+    for line in gates_input.lines() {
+        let parts: Vec<&str> = line.split("->").map(|s| s.trim()).collect();
+        let input_expr = parts[0];
+        let output_wire = parts[1].to_string();
+
+        // figure out (in1, in2, operator)
+        let (in1, in2, operator) = if input_expr.contains(" AND ") {
+            let w: Vec<&str> = input_expr.split(" AND ").collect();
+            (w[0].to_string(), w[1].to_string(), "AND".to_string())
+        } else if input_expr.contains(" OR ") {
+            let w: Vec<&str> = input_expr.split(" OR ").collect();
+            (w[0].to_string(), w[1].to_string(), "OR".to_string())
+        } else if input_expr.contains(" XOR ") {
+            let w: Vec<&str> = input_expr.split(" XOR ").collect();
+            (w[0].to_string(), w[1].to_string(), "XOR".to_string())
+        } else {
+            panic!("Unknown operation in '{}'", line);
+        };
+
+        circuit.insert(
+            output_wire.clone(),
+            Gate {
+                in1,
+                in2,
+                operator,
+                out: output_wire,
+            },
+        );
+    }
+
+    for i in 0..45 {
+        if !validate(i,&circuit) {
+            println!("failed at bit {}" ,i);
+        }
+    }
+
+
+    None
+}
 
 #[cfg(test)]
 mod tests {
@@ -173,4 +272,20 @@ mod tests {
         let result = part_two(&advent_of_code::template::read_file("examples", DAY));
         assert_eq!(result, None);
     }
+
+    /* #[test]
+    fn test_tiny_circuit() {
+        let input = r#"
+x00: 1
+x01: 1
+y00: 0
+y01: 1
+
+x00 AND y00 -> z00
+x01 OR y01 -> z01
+"#;
+
+        let result = run_tiny_circuit(input);
+        assert_eq!(result, 2);
+    } */
 }
