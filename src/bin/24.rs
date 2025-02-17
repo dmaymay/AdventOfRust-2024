@@ -158,33 +158,38 @@ fn binary_from_wires(wires: &HashMap<String, u8>, prefix: char) -> (Vec<String>,
     (keys, binary_str)
 }
 
+
+// PART TWO
+
 #[derive(Debug, Clone)]
-struct Gate {
-    in1: String,
-    in2: String,
-    operator: String,
-    out: String,
+pub struct Gate {
+    pub in1: String,
+    pub in2: String,
+    pub operator: String,
+    pub out: String,
 }
 
-/// Recursively evaluates the value on wire `w`.
+/// recursively fetches the value on wire `w`, using input xNN/yNN wires
 fn evaluate_wire(
     w: &str,
     circuit: &HashMap<String, Gate>,
     inputs: &HashMap<String, u8>,
     memo: &mut HashMap<String, u8>,
 ) -> u8 {
+    // if w is in inputs (an xNN or yNN wire), return that bit
     if let Some(&val) = inputs.get(w) {
         return val;
     }
     if let Some(&val) = memo.get(w) {
         return val;
     }
+    // otherwise recursively find
     if let Some(gate) = circuit.get(w) {
         let v1 = evaluate_wire(&gate.in1, circuit, inputs, memo);
         let v2 = evaluate_wire(&gate.in2, circuit, inputs, memo);
         let result = match gate.operator.as_str() {
             "AND" => v1 & v2,
-            "OR" => v1 | v2,
+            "OR"  => v1 | v2,
             "XOR" => v1 ^ v2,
             _ => panic!("unknown operator: {}", gate.operator),
         };
@@ -194,147 +199,226 @@ fn evaluate_wire(
     panic!("Wire {} not found in inputs or circuit", w);
 }
 
-/// Simulates the entire circuit given the input values.
+/// runs the circuit for all gate-output wires
 fn simulate_circuit(
     circuit: &HashMap<String, Gate>,
     inputs: &HashMap<String, u8>,
 ) -> HashMap<String, u8> {
     let mut outputs = HashMap::new();
-    // Evaluate every wire that is driven by a gate.
-    for w in circuit.keys() {
+    for out_wire in circuit.keys() {
         let mut memo = HashMap::new();
-        let value = evaluate_wire(w, circuit, inputs, &mut memo);
-        outputs.insert(w.clone(), value);
+        let val = evaluate_wire(out_wire, circuit, inputs, &mut memo);
+        outputs.insert(out_wire.clone(), val);
     }
     outputs
 }
 
-/// Builds a fixed-width input vector for a given bit 'n'.
-/// For n == 0:
-///   vector = [0]*(44) + [test_bit]
-/// For n > 0:
-///   vector = [0]*(44 - n) + [test_bit] + ([carry] + [0]*(n-1))
-/// Then we reverse the vector so that index 0 is the least significant bit.
+/// build a test input vector for the n-th bit
+/// plus optional carry in c for bits > 0. Reversed so index 0 is the least significant bit.
 fn build_input_vector(n: u8, test_bit: u8, carry: u8) -> Vec<u8> {
     if n == 0 {
         let mut vec = vec![0; 44];
         vec.push(test_bit);
         vec.reverse();
-        return vec;
+        vec
     } else {
-        let n = n as usize;
-        let mut vec = vec![0; 44 - n];
+        let n_usize = n as usize;
+        let mut vec = vec![0; 44 - n_usize];
         vec.push(test_bit);
         let mut appended = vec![carry];
-        appended.extend(vec![0; n - 1]);
+        appended.extend(vec![0; n_usize - 1]);
         vec.extend(appended);
         vec.reverse();
         vec
     }
 }
 
-/// Converts a vector of bits into a map of the wires
 fn vector_to_wire_map(prefix: &str, bits: Vec<u8>) -> HashMap<String, u8> {
     let mut map = HashMap::new();
-    for (i, bit) in bits.iter().enumerate() {
-        map.insert(format!("{}{:02}", prefix, i), *bit);
+    for (i, &b) in bits.iter().enumerate() {
+        map.insert(format!("{}{:02}", prefix, i), b);
     }
     map
 }
 
-/// for a bit n, test all combinations of x, y, and carry.
-/// returns true if for every combination the computed zn equals (x+y+carry) % 2.
-/// Which means the ripple-adder is working correctly
-
-fn validate_bit(n: u8, circuit: &HashMap<String, Gate>) -> bool {
-    for &x in &[0, 1] {
-        for &y in &[0, 1] {
-            for &c in &[0, 1] {
-                // For bit 0, we do not inject a carry.
-                if n == 0 && c > 0 {
+/// validate the n-th bit for all combinations of x,y in {0,1}, plus carry in {0,1} if n>0.
+/// return true if z_n always matches (x + y + carry) % 2, else false.
+pub fn validate_bit(n: u8, circuit: &HashMap<String, Gate>) -> bool {
+    for &x in &[0,1] {
+        for &y in &[0,1] {
+            for &c in &[0,1] {
+                if n == 0 && c == 1 {
+                    // No carry in at bit 0
                     continue;
                 }
-                // Build test vectors for x and y.
-                let x_vec = build_input_vector(n, x, c);
-                let y_vec = build_input_vector(n, y, c);
-                let x_map = vector_to_wire_map("x", x_vec);
-                let y_map = vector_to_wire_map("y", y_vec);
-
-                // merge x and y into one input mapping.
+                // Build test vectors
+                let xv = build_input_vector(n, x, c);
+                let yv = build_input_vector(n, y, c);
+                let x_map = vector_to_wire_map("x", xv);
+                let y_map = vector_to_wire_map("y", yv);
                 let mut inputs = HashMap::new();
                 inputs.extend(x_map);
                 inputs.extend(y_map);
 
                 let outputs = simulate_circuit(circuit, &inputs);
                 let z_wire = format!("z{:02}", n);
-                let z_val = *outputs.get(&z_wire).unwrap_or(&0);
-
+                let got = *outputs.get(&z_wire).unwrap_or(&0);
                 let expected = (x + y + c) % 2;
-                if z_val != expected {
-                    println!(
-                        "Validation FAILED for bit {}: x={} y={} c={}, expected {} but got {}",
-                        n, x, y, c, expected, z_val
-                    );
+                if got != expected {
+                    // println!("Bit {} failed for x={},y={},c={} expected={} got={}", n, x, y, c, expected, got);
                     return false;
                 }
             }
         }
     }
-    println!("Bit {} validated correctly.", n);
     true
 }
 
-fn get_wires(
-    w: &str,
+/// build "xNN", "yNN", "zNN" wire names
+fn make_wire(prefix: &str, n: i32) -> String {
+    format!("{}{:02}", prefix, n)
+}
+
+fn find_wire(
     circuit: &HashMap<String, Gate>,
-    memo: &mut HashMap<String, HashSet<String>>,
-) -> HashSet<String> {
-    if let Some(cached) = memo.get(w) {
-        return cached.clone();
-    }
-    let mut res = HashSet::new();
-    res.insert(w.to_string());
-    if let Some(gate) = circuit.get(w) {
-        for input in [&gate.in1, &gate.in2].iter() {
-            if circuit.contains_key(*input) {
-                let deps = get_wires(input, circuit, memo);
-                res.extend(deps);
+    op: Option<&str>,
+    in1: Option<&str>,
+    in2: Option<&str>,
+) -> Option<Gate> {
+    'outer: for gate in circuit.values() {
+        // if op is specified, must match
+        if let Some(required_op) = op {
+            if gate.operator != required_op {
+                continue 'outer;
             }
         }
+        // if in1 is specified, must be either gate.in1 or gate.in2
+        if let Some(required_in1) = in1 {
+            if gate.in1 != required_in1 && gate.in2 != required_in1 {
+                continue 'outer;
+            }
+        }
+        // if in2 is specified, must also be among gate inputs
+        if let Some(required_in2) = in2 {
+            if gate.in1 != required_in2 && gate.in2 != required_in2 {
+                continue 'outer;
+            }
+        }
+        return Some(gate.clone());
     }
-    memo.insert(w.to_string(), res.clone());
-    res
+    None
 }
 
-fn relevant_gates(n: u8, circuit: &HashMap<String, Gate>) {
-    let mut memo: HashMap<String, HashSet<String>> = HashMap::new();
-    let wire_z_n = format!("z{:02}", n);
-    let deps_z_n = get_wires(&wire_z_n, circuit, &mut memo);
+/// swap the output wires of two gates in circuit
+fn swap_gate_outputs(circuit: &mut HashMap<String, Gate>, wire_a: &str, wire_b: &str) {
+    let mut gate_a = circuit.remove(wire_a).expect("Missing gate for wireA");
+    let mut gate_b = circuit.remove(wire_b).expect("Missing gate for wireB");
 
-    let deps_z_n_minus_1 = if n > 0 {
-        let wire_z_n_minus_1 = format!("z{:02}", n - 1);
-        get_wires(&wire_z_n_minus_1, circuit, &mut memo)
+    std::mem::swap(&mut gate_a.out, &mut gate_b.out);
+
+    circuit.insert(gate_a.out.clone(), gate_a);
+    circuit.insert(gate_b.out.clone(), gate_b);
+}
+
+/// fix the wiring for bit n
+/// returns a list of two wire names that it swapped (or empty if no swap)
+fn fix_bit_n(n: i32, circuit: &mut HashMap<String, Gate>) -> Vec<String> {
+    //println!("Issue with bit n = {}", n);
+
+    // prevand = find_wire(op="AND", in1=x(n-1), in2=y(n-1))
+    let prev_and = find_wire(
+        circuit,
+        Some("AND"),
+        Some(&make_wire("x", n-1)),
+        Some(&make_wire("y", n-1)),
+    );
+
+    // prevxor = find_wire(op="XOR", in1=x(n-1), in2=y(n-1))
+    let prev_xor = find_wire(
+        circuit,
+        Some("XOR"),
+        Some(&make_wire("x", n-1)),
+        Some(&make_wire("y", n-1)),
+    );
+
+    // m2 = find_wire(op="AND", in1=prevxor.out)
+    let m2 = if let Some(px) = &prev_xor {
+        find_wire(circuit, Some("AND"), Some(&px.out), None)
+    } else { None };
+
+    // m1 = find_wire(op="OR", in1=m2.out, in2=prevand.out)
+    let m1 = if let (Some(m2_gate), Some(pa)) = (&m2, &prev_and) {
+        find_wire(circuit, Some("OR"), Some(&m2_gate.out), Some(&pa.out))
     } else {
-        HashSet::new()
+        None
     };
 
-    // gates unique to current bit.
-    let impact: HashSet<_> = deps_z_n.difference(&deps_z_n_minus_1).cloned().collect();
+    // nxor = find_wire(op="XOR", in1=x(n), in2=y(n))
+    let nxor = find_wire(
+        circuit,
+        Some("XOR"),
+        Some(&make_wire("x", n)),
+        Some(&make_wire("y", n)),
+    );
 
-    println!("Relevant gates for bit {}:", n);
-    for wire in impact {
-        if let Some(gate) = circuit.get(&wire) {
-            println!("{:?}", gate);
+    // zn = find_wire(op="XOR", in1=nxor.out, in2=m1.out)
+    let mut zn = if let (Some(nx), Some(m1v)) = (&nxor, &m1) {
+        find_wire(circuit, Some("XOR"), Some(&nx.out), Some(&m1v.out))
+    } else {
+        None
+    };
+
+    let mut to_swap: Vec<String> = Vec::new();
+
+    // if zn is None
+    //   let z_gate = circuit[ "zNN" ]
+    //   to_swap = set(z_gate.ins) ^ set([nxor.out, m1.out])
+    if zn.is_none() {
+        let z_wire_name = make_wire("z", n);
+        if let Some(z_gate) = circuit.get(&z_wire_name).cloned() {
+            if let (Some(nx), Some(m1v)) = (&nxor, &m1) {
+                // Current inputs:
+                let cur_ins = vec![z_gate.in1.clone(), z_gate.in2.clone()]
+                    .into_iter()
+                    .collect::<HashSet<_>>();
+                let desired_ins = vec![nx.out.clone(), m1v.out.clone()]
+                    .into_iter()
+                    .collect::<HashSet<_>>();
+                let symdiff = cur_ins
+                    .symmetric_difference(&desired_ins)
+                    .cloned()
+                    .collect::<Vec<_>>();
+                to_swap = symdiff;
+            }
+            zn = Some(z_gate);
         }
     }
+
+    // if we do have zn, check if zn.out != "zNN". If so, we swap those two wires:
+    if let Some(ref real_zn) = zn {
+        let expected_out = make_wire("z", n);
+        if real_zn.out != expected_out {
+            to_swap = vec![expected_out, real_zn.out.clone()];
+        }
+    }
+
+    // if to_swap has exactly 2 wires, we perform swap_gate_outputs
+    if to_swap.len() == 2 {
+        //println!("Swapping wires: {:?} for bit n={}", to_swap, n);
+        swap_gate_outputs(circuit, &to_swap[0], &to_swap[1]);
+    }
+
+    to_swap
 }
 
-pub fn part_two(input: &str) -> Option<u128> {
+
+pub fn part_two(input: &str) -> Option<String> {
+
     let (wires_input, gates_input) = input.split_once("\n\n").unwrap();
     let mut xy_wires: HashMap<String, u8> = HashMap::new();
     let mut circuit: HashMap<String, Gate> = HashMap::new();
 
-    // parse initial x,y wire values.
+    // parse the xNN/yNN wire values
     for line in wires_input.lines() {
         let split: Vec<&str> = line.split(':').collect();
         let wire_name = split[0].trim().to_string();
@@ -342,7 +426,7 @@ pub fn part_two(input: &str) -> Option<u128> {
         xy_wires.insert(wire_name, value);
     }
 
-    // parse and store gates.
+    // parse gates
     for line in gates_input.lines() {
         let parts: Vec<&str> = line.split("->").map(|s| s.trim()).collect();
         let input_expr = parts[0];
@@ -372,16 +456,23 @@ pub fn part_two(input: &str) -> Option<u128> {
         );
     }
 
-    for n in 0..=44 {
-        if !validate_bit(n, &circuit) {
-            println!("Adder validation FAILED for bit {}", n);
-            // print out the relevant gates for this failing bit.
-            relevant_gates(n, &circuit);
-        }
-    }
-    relevant_gates(8, &circuit);
+    let mut all_swaps = Vec::new();
 
-    None
+    for bit in 0..=44 {
+        if validate_bit(bit, &circuit) {
+            continue;
+        }
+        let fix_result = fix_bit_n(bit as i32, &mut circuit);
+        all_swaps.extend(fix_result);
+    }
+
+    all_swaps.sort();
+    all_swaps.dedup();
+
+    let answer = all_swaps.join(",");
+    //println!("Swapped wires: {}", answer);
+
+    Some(answer)
 }
 
 #[cfg(test)]
