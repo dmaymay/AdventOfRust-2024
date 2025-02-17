@@ -1,8 +1,59 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
-use regex::Regex;
-
+/* use regex::Regex;
+ */
 advent_of_code::solution!(24);
+
+/*
+    Adder structure:
+
+        x01
+              \
+               \
+                >----[ XOR ]---  x01 XOR y01
+               /                \
+              /                  \
+            y01                    >----[ XOR ]--- Sum bit 1 (z01)
+                                /
+Carry_in (from bit 00) -------/
+
+  --- Carry Generation for Bit 1 ---
+
+    (x01 AND y01) --> (signal A)
+
+    (x01 XOR y01) AND Carry_in (from bit 00) --> (signal B)
+
+    Then: Carry_out(bit 1) = A OR B  (which will be the carry for bit 2)
+
+
+From input:
+sum bit 00:
+x00 XOR y00 -> z00
+
+Carry from bit 00: dsr
+x00 AND y00 -> dsr
+
+Sum bit 01:
+x01 XOR y01 -> nmk
+nmk XOR dsr -> z01
+
+Carry from bit 01: skd
+x01 AND y01 -> hqh --> signal A
+x01 XOR y01 -> nmk
+nmk AND dsr -> qrt --> signal B
+hqh OR qrt -> skd
+
+Sum bit 02:
+x02 XOR y02 -> ssq
+skd XOR ssq -> z02
+
+Carry from bit 02: vnw
+y02 AND x02 -> jmp --> signal A
+x02 XOR y02 -> ssq
+ssq AND skd -> nqw --> signal B
+jmp OR nqw -> vnw
+
+*/
 
 #[derive(Debug, Clone)]
 struct Gate1 {
@@ -107,14 +158,6 @@ fn binary_from_wires(wires: &HashMap<String, u8>, prefix: char) -> (Vec<String>,
     (keys, binary_str)
 }
 
-fn add_binary(x: &str, y: &str) -> String {
-    let num1 = u128::from_str_radix(x, 2).unwrap_or(0);
-    let num2 = u128::from_str_radix(y, 2).unwrap_or(0);
-    let sum = num1 + num2;
-
-    format!("{:b}", sum)
-}
-
 #[derive(Debug, Clone)]
 struct Gate {
     in1: String,
@@ -123,84 +166,167 @@ struct Gate {
     out: String,
 }
 
-
-fn solve_wire(
+/// Recursively evaluates the value on wire `w`.
+fn evaluate_wire(
     w: &str,
-    init: &HashMap<&str, Vec<u8>>, // "x" -> [bits], "y" -> [bits]
     circuit: &HashMap<String, Gate>,
+    inputs: &HashMap<String, u8>,
+    memo: &mut HashMap<String, u8>,
 ) -> u8 {
-
-    let re = Regex::new(r"^(x|y)(\d{2})$").unwrap();
-
-    if let Some(caps) = re.captures(w) {
-        let var = caps.get(1).unwrap().as_str();   // "x" or "y"
-        let idx = caps.get(2).unwrap().as_str().parse::<usize>().unwrap();
-        return init[var][idx];
+    if let Some(&val) = inputs.get(w) {
+        return val;
     }
-    // evaluate recursively
-    let gate = &circuit[w];
-    let left  = solve_wire(&gate.in1, init, circuit);
-    let right = solve_wire(&gate.in2, init, circuit);
-
-    match_operator(&gate.operator, left, right)
+    if let Some(&val) = memo.get(w) {
+        return val;
+    }
+    if let Some(gate) = circuit.get(w) {
+        let v1 = evaluate_wire(&gate.in1, circuit, inputs, memo);
+        let v2 = evaluate_wire(&gate.in2, circuit, inputs, memo);
+        let result = match gate.operator.as_str() {
+            "AND" => v1 & v2,
+            "OR" => v1 | v2,
+            "XOR" => v1 ^ v2,
+            _ => panic!("unknown operator: {}", gate.operator),
+        };
+        memo.insert(w.to_string(), result);
+        return result;
+    }
+    panic!("Wire {} not found in inputs or circuit", w);
 }
 
-fn make_wire(var: &str, num: usize) -> String {
-    // e.g. make_wire("z", 3) => "z03"
-    format!("{}{:02}", var, num)
+/// Simulates the entire circuit given the input values.
+fn simulate_circuit(
+    circuit: &HashMap<String, Gate>,
+    inputs: &HashMap<String, u8>,
+) -> HashMap<String, u8> {
+    let mut outputs = HashMap::new();
+    // Evaluate every wire that is driven by a gate.
+    for w in circuit.keys() {
+        let mut memo = HashMap::new();
+        let value = evaluate_wire(w, circuit, inputs, &mut memo);
+        outputs.insert(w.clone(), value);
+    }
+    outputs
 }
 
-fn validate(n: usize, circuit: &HashMap<String, Gate>) -> bool {
-    // We'll do up to 44 bits (or however many bits your puzzle might have).
-    // The code below is just your Python approach in Rust style.
-    for x in 0..2 {
-        for y in 0..2 {
-            for c in 0..2 {
-                // If n=0, skip carry=1
-                if n == 0 && c == 1 {
+/// Builds a fixed-width input vector for a given bit 'n'.
+/// For n == 0:
+///   vector = [0]*(44) + [test_bit]
+/// For n > 0:
+///   vector = [0]*(44 - n) + [test_bit] + ([carry] + [0]*(n-1))
+/// Then we reverse the vector so that index 0 is the least significant bit.
+fn build_input_vector(n: u8, test_bit: u8, carry: u8) -> Vec<u8> {
+    if n == 0 {
+        let mut vec = vec![0; 44];
+        vec.push(test_bit);
+        vec.reverse();
+        return vec;
+    } else {
+        let n = n as usize;
+        let mut vec = vec![0; 44 - n];
+        vec.push(test_bit);
+        let mut appended = vec![carry];
+        appended.extend(vec![0; n - 1]);
+        vec.extend(appended);
+        vec.reverse();
+        vec
+    }
+}
+
+/// Converts a vector of bits into a map of the wires
+fn vector_to_wire_map(prefix: &str, bits: Vec<u8>) -> HashMap<String, u8> {
+    let mut map = HashMap::new();
+    for (i, bit) in bits.iter().enumerate() {
+        map.insert(format!("{}{:02}", prefix, i), *bit);
+    }
+    map
+}
+
+/// for a bit n, test all combinations of x, y, and carry.
+/// returns true if for every combination the computed zn equals (x+y+carry) % 2.
+/// Which means the ripple-adder is working correctly
+
+fn validate_bit(n: u8, circuit: &HashMap<String, Gate>) -> bool {
+    for &x in &[0, 1] {
+        for &y in &[0, 1] {
+            for &c in &[0, 1] {
+                // For bit 0, we do not inject a carry.
+                if n == 0 && c > 0 {
                     continue;
                 }
+                // Build test vectors for x and y.
+                let x_vec = build_input_vector(n, x, c);
+                let y_vec = build_input_vector(n, y, c);
+                let x_map = vector_to_wire_map("x", x_vec);
+                let y_map = vector_to_wire_map("y", y_vec);
 
-                // Build init_x, init_y as in your Python code
-                // e.g. 44-n zeros, then push x, possibly push c, then push zeros, then reverse
-                // This is the same logic as your snippet:
-                let size = 44; // or puzzle's bit count
-                let mut arr_x = vec![0; size - n];
-                arr_x.push(x as u8);
-                if n > 0 {
-                    arr_x.push(c as u8);
-                    for _ in 0..(n - 1) {
-                        arr_x.push(0);
-                    }
-                }
-                arr_x.reverse();
+                // merge x and y into one input mapping.
+                let mut inputs = HashMap::new();
+                inputs.extend(x_map);
+                inputs.extend(y_map);
 
-                let mut arr_y = vec![0; size - n];
-                arr_y.push(y as u8);
-                if n > 0 {
-                    arr_y.push(c as u8);
-                    for _ in 0..(n - 1) {
-                        arr_y.push(0);
-                    }
-                }
-                arr_y.reverse();
+                let outputs = simulate_circuit(circuit, &inputs);
+                let z_wire = format!("z{:02}", n);
+                let z_val = *outputs.get(&z_wire).unwrap_or(&0);
 
-                let mut init = HashMap::new();
-                init.insert("x", arr_x);
-                init.insert("y", arr_y);
-
-                let wire_name = make_wire("z", n); // e.g. "z03"
-                let z_val = solve_wire(&wire_name, &init, circuit);
-
-                if z_val != ((x + y + c) % 2) as u8 {
+                let expected = (x + y + c) % 2;
+                if z_val != expected {
+                    println!(
+                        "Validation FAILED for bit {}: x={} y={} c={}, expected {} but got {}",
+                        n, x, y, c, expected, z_val
+                    );
                     return false;
                 }
             }
         }
     }
-
-    // If all combos passed, bit n is correct
+    println!("Bit {} validated correctly.", n);
     true
+}
+
+fn get_wires(
+    w: &str,
+    circuit: &HashMap<String, Gate>,
+    memo: &mut HashMap<String, HashSet<String>>,
+) -> HashSet<String> {
+    if let Some(cached) = memo.get(w) {
+        return cached.clone();
+    }
+    let mut res = HashSet::new();
+    res.insert(w.to_string());
+    if let Some(gate) = circuit.get(w) {
+        for input in [&gate.in1, &gate.in2].iter() {
+            if circuit.contains_key(*input) {
+                let deps = get_wires(input, circuit, memo);
+                res.extend(deps);
+            }
+        }
+    }
+    memo.insert(w.to_string(), res.clone());
+    res
+}
+
+fn relevant_gates(n: u8, circuit: &HashMap<String, Gate>) {
+    let mut memo: HashMap<String, HashSet<String>> = HashMap::new();
+    let wire_z_n = format!("z{:02}", n);
+    let deps_z_n = get_wires(&wire_z_n, circuit, &mut memo);
+
+    let deps_z_n_minus_1 = if n > 0 {
+        let wire_z_n_minus_1 = format!("z{:02}", n - 1);
+        get_wires(&wire_z_n_minus_1, circuit, &mut memo)
+    } else {
+        HashSet::new()
+    };
+
+    // gates unique to current bit.
+    let impact: HashSet<_> = deps_z_n.difference(&deps_z_n_minus_1).cloned().collect();
+
+    println!("Relevant gates for bit {}:", n);
+    for wire in impact {
+        if let Some(gate) = circuit.get(&wire) {
+            println!("{:?}", gate);
+        }
+    }
 }
 
 pub fn part_two(input: &str) -> Option<u128> {
@@ -208,7 +334,7 @@ pub fn part_two(input: &str) -> Option<u128> {
     let mut xy_wires: HashMap<String, u8> = HashMap::new();
     let mut circuit: HashMap<String, Gate> = HashMap::new();
 
-    // parsing intial x,y wire values
+    // parse initial x,y wire values.
     for line in wires_input.lines() {
         let split: Vec<&str> = line.split(':').collect();
         let wire_name = split[0].trim().to_string();
@@ -216,13 +342,12 @@ pub fn part_two(input: &str) -> Option<u128> {
         xy_wires.insert(wire_name, value);
     }
 
-    // parsing and storing gate
+    // parse and store gates.
     for line in gates_input.lines() {
         let parts: Vec<&str> = line.split("->").map(|s| s.trim()).collect();
         let input_expr = parts[0];
         let output_wire = parts[1].to_string();
 
-        // figure out (in1, in2, operator)
         let (in1, in2, operator) = if input_expr.contains(" AND ") {
             let w: Vec<&str> = input_expr.split(" AND ").collect();
             (w[0].to_string(), w[1].to_string(), "AND".to_string())
@@ -247,12 +372,14 @@ pub fn part_two(input: &str) -> Option<u128> {
         );
     }
 
-    for i in 0..45 {
-        if !validate(i,&circuit) {
-            println!("failed at bit {}" ,i);
+    for n in 0..=44 {
+        if !validate_bit(n, &circuit) {
+            println!("Adder validation FAILED for bit {}", n);
+            // print out the relevant gates for this failing bit.
+            relevant_gates(n, &circuit);
         }
     }
-
+    relevant_gates(8, &circuit);
 
     None
 }
@@ -272,20 +399,4 @@ mod tests {
         let result = part_two(&advent_of_code::template::read_file("examples", DAY));
         assert_eq!(result, None);
     }
-
-    /* #[test]
-    fn test_tiny_circuit() {
-        let input = r#"
-x00: 1
-x01: 1
-y00: 0
-y01: 1
-
-x00 AND y00 -> z00
-x01 OR y01 -> z01
-"#;
-
-        let result = run_tiny_circuit(input);
-        assert_eq!(result, 2);
-    } */
 }
